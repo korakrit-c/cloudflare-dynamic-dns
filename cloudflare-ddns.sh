@@ -1,4 +1,4 @@
-#/usr/bin/env sh
+#!/bin/bash
 
 # Main script to edit the record, should be used with cron
 
@@ -14,7 +14,7 @@ CLOUDFLARE_RECORD_NAME=
 CLOUDFLARE_RECORD_ID=
 
 # Retrieve the last recorded public IP address
-IP_RECORD="/tmp/cloudflare-dunamic-dns-ip-record"
+IP_RECORD="/tmp/cloudflare-dynamic-dns-ip-record"
 RECORDED_IP=`cat $IP_RECORD`
 
 # Fetch the current public IP address
@@ -22,7 +22,7 @@ PUBLIC_IP=$(curl --silent https://api.ipify.org) || exit 1
 
 #If the public ip has not changed, nothing needs to be done, exit.
 if [ "$PUBLIC_IP" = "$RECORDED_IP" ]; then
-  exit 0
+    exit 0
 fi
 
 # Otherwise, your Internet provider changed your public IP again.
@@ -30,16 +30,22 @@ fi
 echo $PUBLIC_IP > $IP_RECORD
 
 # Record the new public IP address on Cloudflare using API v4
+while IFS=';' read -r CLOUDFLARE_RECORD_NAME CLOUDFLARE_RECORD_ID
+do
+    echo $CLOUDFLARE_RECORD_NAME";"$CLOUDFLARE_RECORD_ID
+
 RECORD=$(cat <<EOF
-  { "type": "A",
-  "name": "$CLOUDFLARE_RECORD_NAME",
-  "content": "$PUBLIC_IP",
-  "ttl": 1,
-  "proxied": false }
+{ "type": "A",
+"name": "$CLOUDFLARE_RECORD_NAME",
+"content": "$PUBLIC_IP",
+"ttl": 1,
+"proxied": true }
 EOF
 )
 curl "https://api.cloudflare.com/client/v4/zones/$CLOUDFLARE_ZONE_ID/dns_records/$CLOUDFLARE_RECORD_ID" \
-  -X PUT \
-  -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d "$RECORD"
+-X PUT \
+-H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+-H "Content-Type: application/json" \
+-d "$RECORD"
+
+done < cf_record.txt
